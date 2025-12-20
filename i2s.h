@@ -15,13 +15,13 @@
 
 //#define I2S_START_LEVEL     (I2S_BUF_DEPTH / 4)
 //#define I2S_TARGET_LEVEL    (I2S_BUF_DEPTH * 3 / 4)
-#define I2S_BUF_DEPTH   8
-#define I2S_START_LEVEL     1
-#define I2S_TARGET_LEVEL    2
+#define I2S_BUF_DEPTH   16
+#define I2S_START_LEVEL     4
+#define I2S_TARGET_LEVEL    6
 //#define I2S_TARGET_LEVEL_MIN_US    1200
 //#define I2S_TARGET_LEVEL_MAX_US    1600
-#define I2S_TARGET_LEVEL_MIN_US    1500
-#define I2S_TARGET_LEVEL_MAX_US    2000
+#define I2S_TARGET_LEVEL_MIN_US    4000
+#define I2S_TARGET_LEVEL_MAX_US    6000
 #define I2S_DATA_LEN    ((48 + 8) * 8 * 2)
 
 typedef enum {

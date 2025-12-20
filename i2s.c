@@ -811,3 +811,4 @@ void set_playback_handler(ExternalFunction func){
 void set_core1_main_function(Core1MainFunction func){
     core1_main_funcion = func;
 }
+
