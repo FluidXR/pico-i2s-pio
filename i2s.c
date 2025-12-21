@@ -44,6 +44,14 @@
  static uint8_t dequeue_pos;
  static uint64_t last_i2s_transfer = 0;
 static volatile uint32_t last_dma_words = 96; // best-effort cadence (words = int32 transfers)
+
+// Total queued audio in int32 words (L+R interleaved). This lets us estimate
+// buffered time correctly even when USB packets vary by +/- a few frames.
+static volatile int32_t i2s_buf_words = 0;
+
+// Debug counters for diagnosing rare periodic glitches.
+static volatile uint32_t dbg_underrun_count = 0;
+static volatile uint32_t dbg_overflow_count = 0;
  
  static int32_t i2s_buf[I2S_BUF_DEPTH][I2S_DATA_LEN];
  static uint32_t i2s_sample[I2S_BUF_DEPTH];
@@ -243,6 +251,7 @@ static inline void __time_critical_func(i2s_clktrim_apply_isr)(void) {
         if (!mute && len == 0) {
             mute = true;
             stop_playback = true;
+            dbg_underrun_count++;
 
             // Do a one-shot fade-out buffer (based on last_out_*), then zeros after that
             do_fade_out = !underrun_fade_done;
@@ -268,6 +277,8 @@ static inline void __time_critical_func(i2s_clktrim_apply_isr)(void) {
             }
 
             i2s_buf_length--;
+            i2s_buf_words -= (int32_t)use_sample;
+            if (i2s_buf_words < 0) i2s_buf_words = 0;
         }
 
         spin_unlock(queue_spin_lock, save);
@@ -560,6 +571,7 @@ static inline void __time_critical_func(i2s_clktrim_apply_isr)(void) {
      i2s_buf_length = 0;
      enqueue_pos = 0;
      dequeue_pos = 0;
+    i2s_buf_words = 0;
     last_i2s_transfer = time_us_64();
     last_dma_words = 96;
  
@@ -992,11 +1004,15 @@ void i2s_clock_trim(void) {
  
          uint32_t save = spin_lock_blocking(queue_spin_lock);
          i2s_buf_length++;
+        i2s_buf_words += (int32_t)sample;
          spin_unlock(queue_spin_lock, save);
  
          return true;
      }
-     else return false;
+     else {
+         dbg_overflow_count++;
+         return false;
+     }
  }
  
  bool i2s_dequeue(int32_t** buff, int* sample){
@@ -1011,6 +1027,8 @@ void i2s_clock_trim(void) {
  
          uint32_t save = spin_lock_blocking(queue_spin_lock);
          i2s_buf_length--;
+        i2s_buf_words -= (int32_t)(*sample);
+        if (i2s_buf_words < 0) i2s_buf_words = 0;
          spin_unlock(queue_spin_lock, save);
  
          return true;
@@ -1030,17 +1048,27 @@ void i2s_clock_trim(void) {
  }
  
  int32_t i2s_get_buf_us(void){
-     int32_t d;
+    int32_t words;
  
      uint32_t save = spin_lock_blocking(queue_spin_lock);
-     d = i2s_buf_length;
+    words = i2s_buf_words;
      spin_unlock(queue_spin_lock, save);
  
-     // should be no more than 1000us (1ms)
-     uint64_t since_last_i2s_transfer = time_us_64() - last_i2s_transfer;
+    // Estimate buffered audio time from queued words.
+    // words are int32 samples (L,R interleaved) => frames = words/2.
+    // This is accurate even when USB OUT packets vary by +/- frames.
+    int64_t frames = (int64_t)(words / 2);
+    int64_t buffered_us = frames * 1000000ll / 48000ll; // project currently fixed at 48k
  
-     // each buffer is 1ms
-     int32_t buffer_us = (int32_t)((uint64_t)d * 1000 - since_last_i2s_transfer);
+    // subtract time already "in flight" since last DMA programming
+    int64_t since_last_i2s_transfer = (int64_t)(time_us_64() - last_i2s_transfer);
+    int32_t buffer_us = (int32_t)(buffered_us - since_last_i2s_transfer);
+
+    // Clamp to sane bounds to avoid rare spikes (e.g. delayed IRQ) feeding USB feedback.
+    if (buffer_us < 0) buffer_us = 0;
+    // Worst case: I2S_BUF_DEPTH buffers at max length (I2S_DATA_LEN words)
+    int32_t max_us = (int32_t)I2S_BUF_DEPTH * 2000; // conservative upper bound
+    if (buffer_us > max_us) buffer_us = max_us;
  
      return buffer_us;
  }
@@ -1065,4 +1093,12 @@ void i2s_clock_trim(void) {
  void set_core1_main_function(Core1MainFunction func){
      core1_main_funcion = func;
  }
+
+uint32_t i2s_dbg_get_underrun_count(void){
+    return dbg_underrun_count;
+}
+
+uint32_t i2s_dbg_get_overflow_count(void){
+    return dbg_overflow_count;
+}
  

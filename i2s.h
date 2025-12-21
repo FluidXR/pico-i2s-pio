@@ -154,6 +154,17 @@
  * @note Divider application is done inside the DMA IRQ handler at block boundaries.
  */
 void i2s_clock_trim(void);
+
+/**
+ * @brief Debug counters to diagnose periodic glitches/dropouts.
+ *
+ * - underrun: buffer hit 0 while playing (ISR entered mute)
+ * - overflow: i2s_enqueue() failed because the queue was full (audio chunk dropped)
+ *
+ * @note These are best-effort and meant for field diagnosis/tuning.
+ */
+uint32_t i2s_dbg_get_underrun_count(void);
+uint32_t i2s_dbg_get_overflow_count(void);
  
  /**
   * @brief i2sの音量を変更する
