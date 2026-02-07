@@ -29,12 +29,17 @@
 // Optional: device-side clock trimming (rate control).
 //
 // This project already uses USB Audio feedback (tud_audio_fb_set()) to regulate
-// the host send rate. Enabling *both* USB feedback and device clock trim creates
-// two competing control loops that can slowly oscillate (periodic pops / fuzz).
-// Default is OFF.
+// the host send rate. On some hosts (macOS), feedback works well. On others
+// (Windows), feedback appears broken, causing buffer drain and underruns.
+//
+// Solution: Enable compilation but use adaptive activation in main.c.
+// Clock trim is automatically enabled only when buffer health indicates
+// feedback is not working (e.g. consistent buffer drain over time).
+//
+// Default is ON for compilation; activation is adaptive at runtime.
 //-----------------------------------------------------------------------------
 #ifndef I2S_ENABLE_CLOCK_TRIM
-#define I2S_ENABLE_CLOCK_TRIM 0
+#define I2S_ENABLE_CLOCK_TRIM 1  // Compiled in; adaptively activated at runtime
 #endif
  
  typedef enum {
