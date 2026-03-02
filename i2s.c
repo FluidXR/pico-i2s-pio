@@ -400,11 +400,11 @@ void i2s_mclk_init(uint32_t audio_clock){
         if (i2s_mode == MODE_I2S || i2s_mode == MODE_I2S_DUAL){
             if (audio_clock % 48000 == 0){
                 div = (float)clock_get_hz(clk_sys) / (49.152f * (float)MHZ);
-                clk_48khz == true;
+                clk_48khz = true;
             }
             else{
                 div = (float)clock_get_hz(clk_sys) / (45.1584f * (float)MHZ);
-                clk_48khz == false;
+                clk_48khz = false;
             }
             sm_config_set_clkdiv(&sm_config_mclk, div);
         }
@@ -551,12 +551,12 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
 
         //mclk
         if (i2s_mode == MODE_I2S || i2s_mode == MODE_I2S_DUAL){
-            if (audio_clock % 48000 == 0 && clk_48khz == false){
+            if ((audio_clock % 48000 == 0) && (clk_48khz == false)){
                 div = (float)clock_get_hz(clk_sys) / (49.152f * (float)MHZ);
                 pio_sm_set_clkdiv(i2s_pio, i2s_sm + 1, div);
                 clk_48khz == true;
             }
-            else if (audio_clock % 48000 == 0 && clk_48khz == true){
+            else if ((audio_clock % 48000 == 0) && (clk_48khz == true)){
                 div = (float)clock_get_hz(clk_sys) / (45.1584f * (float)MHZ);
                 pio_sm_set_clkdiv(i2s_pio, i2s_sm + 1, div);
                 clk_48khz == false;
@@ -731,7 +731,7 @@ bool i2s_enqueue(uint8_t* in, int sample, uint8_t resolution){
             }
         }
         
-        i2s_sample[enqueue_pos] = sample;
+        i2s_sample[enqueue_pos] = (uint32_t)sample;
 		enqueue_pos++;
 		if (enqueue_pos >= I2S_BUF_DEPTH){
             enqueue_pos = 0;
@@ -749,7 +749,7 @@ bool i2s_enqueue(uint8_t* in, int sample, uint8_t resolution){
 bool i2s_dequeue(int32_t** buff, int* sample){
     if (i2s_get_buf_length()){
         *buff = i2s_buf[dequeue_pos];
-        *sample = i2s_sample[dequeue_pos];
+        *sample = (int)i2s_sample[dequeue_pos];
 
         dequeue_pos++;
         if (dequeue_pos >= I2S_BUF_DEPTH){
