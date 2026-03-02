@@ -35,10 +35,13 @@ static bool i2s_use_core1       = false;
 static CLOCK_MODE i2s_clock_mode = CLOCK_MODE_DEFAULT;
 static I2S_MODE i2s_mode        = MODE_I2S;
 
-static int8_t i2s_buf_length;
+static volatile int32_t i2s_buf_length;
 static uint8_t enqueue_pos;
 static uint8_t dequeue_pos;
 static uint64_t last_i2s_transfer = 0;
+
+static volatile uint32_t dbg_underrun_count = 0;
+static volatile uint32_t dbg_overflow_count = 0;
 
 static int32_t i2s_buf[I2S_BUF_DEPTH][I2S_DATA_LEN];
 static uint32_t i2s_sample[I2S_BUF_DEPTH];
@@ -162,6 +165,7 @@ static void __isr __time_critical_func(i2s_handler)(){
     static uint32_t mute_len = sizeof(mute_buff) / sizeof(int32_t);
         
     if (i2s_buf_length == 0 && mute == false){
+        dbg_underrun_count++;
         mute = true;
         set_playback_state(false);
     }
@@ -197,7 +201,7 @@ static void defalut_core1_main(void){
     bool mute = false;
     int32_t mute_buff[96 * 2] = {0};
     uint32_t mute_len = sizeof(mute_buff) / sizeof(int32_t);
-    int8_t buf_length;
+    int32_t buf_length;
     static int32_t dma_buff[2][I2S_DATA_LEN];
     uint8_t dma_use = 0;
 
@@ -743,7 +747,10 @@ bool i2s_enqueue(uint8_t* in, int sample, uint8_t resolution){
 
 		return true;
 	}
-	else return false;
+	else {
+        dbg_overflow_count++;
+        return false;
+    }
 }
 
 bool i2s_dequeue(int32_t** buff, int* sample){
@@ -765,8 +772,8 @@ bool i2s_dequeue(int32_t** buff, int* sample){
     else return false;
 }
 
-int8_t i2s_get_buf_length(void){
-    int8_t d;
+int32_t i2s_get_buf_length(void){
+    int32_t d;
 
     uint32_t save = spin_lock_blocking(queue_spin_lock);
 	d = i2s_buf_length;
@@ -776,7 +783,7 @@ int8_t i2s_get_buf_length(void){
 }
 
 int32_t i2s_get_buf_us(void){
-    int8_t d;
+    int32_t d;
 
     uint32_t save = spin_lock_blocking(queue_spin_lock);
 	d = i2s_buf_length;
@@ -810,4 +817,12 @@ void set_playback_handler(ExternalFunction func){
 
 void set_core1_main_function(Core1MainFunction func){
     core1_main_funcion = func;
+}
+
+uint32_t i2s_dbg_get_underrun_count(void){
+    return dbg_underrun_count;
+}
+
+uint32_t i2s_dbg_get_overflow_count(void){
+    return dbg_overflow_count;
 }

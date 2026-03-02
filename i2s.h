@@ -119,9 +119,9 @@ bool i2s_dequeue(int32_t** buff, int* sample);
 /**
  * @brief i2sのバッファの長さを取得する
  * 
- * @return int8_t バッファの長さ
+ * @return int32_t バッファの長さ
  */
-int8_t i2s_get_buf_length(void);
+int32_t i2s_get_buf_length(void);
 
 /**
  * @brief Get the length of the i2s buffer in microseconds
@@ -131,6 +131,9 @@ int8_t i2s_get_buf_length(void);
  * @note Data in DMA transfer is not included in buffer length.
  */
 int32_t i2s_get_buf_us(void);
+
+uint32_t i2s_dbg_get_underrun_count(void);
+uint32_t i2s_dbg_get_overflow_count(void);
 
 /**
  * @brief i2sの音量を変更する
