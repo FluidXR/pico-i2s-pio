@@ -181,11 +181,12 @@ static void __isr __time_critical_func(i2s_handler)(){
             dequeue_pos = 0;
         }
         i2s_buf_length--;
-        last_i2s_transfer = time_us_64();
     }
     else{
         dma_channel_transfer_from_buffer_now(i2s_dma_chan, mute_buff, mute_len);
     }
+
+    last_i2s_transfer = time_us_64();
     
     dma_hw->ints0 = 1u << i2s_dma_chan;
 }
@@ -784,18 +785,27 @@ int32_t i2s_get_buf_length(void){
 
 int32_t i2s_get_buf_us(void){
     int32_t d;
+    uint64_t last;
 
+    // Read both under the same lock to avoid torn 64-bit read of last_i2s_transfer
     uint32_t save = spin_lock_blocking(queue_spin_lock);
-	d = i2s_buf_length;
+    d = i2s_buf_length;
+    last = last_i2s_transfer;
     spin_unlock(queue_spin_lock, save);
 
-    // should be no more than 1000us (1ms)
-    uint64_t since_last_i2s_transfer = time_us_64() - last_i2s_transfer;
+    uint64_t now = time_us_64();
+    int32_t elapsed_us = (int32_t)(now - last);
 
-    // each buffer is 1ms
-    int32_t buffer_us = (uint64_t)d * 1000 - since_last_i2s_transfer;
+    // Bound the "within-current-buffer" phase.
+    if (elapsed_us < 0) elapsed_us = 0;
+    if (elapsed_us > 1000) elapsed_us = 1000;
 
-    return buffer_us;
+    // Interpret d as "full 1ms buffers queued AFTER the one currently playing".
+    // Total buffered time = queued_full_ms + remaining time in current ms.
+    int32_t queue_us = d * 1000;
+    int32_t rem_us = 1000 - elapsed_us;
+
+    return queue_us + rem_us;
 }
 
 void i2s_volume_change(int16_t v, int8_t ch){
