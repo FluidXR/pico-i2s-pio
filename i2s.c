@@ -97,7 +97,7 @@ static inline void __time_critical_func(i2s_clktrim_apply_isr)(void) {
     // Apply at a slow cadence to reduce "acceleration" artifacts.
     // With ~1ms blocks, this is ~64ms per step.
     static uint32_t block_ctr = 0;
-    if (((++block_ctr) & 0x3fu) != 0u) return;
+    if (((++block_ctr) & 0x07u) != 0u) return;  // ~8ms per 1/256 divider step
 
     int32_t target = clktrim_target_q8;
     int32_t applied = clktrim_applied_q8;
@@ -837,6 +837,19 @@ static inline void __time_critical_func(i2s_clktrim_apply_isr)(void) {
         }
      }
  }
+
+int32_t i2s_clktrim_base_q8(void) { return clktrim_base_q8; }
+
+// External rate control (used in synchronous/adaptive USB mode): set the PIO
+// clock divider target as base + offset (Q8). Positive offset = slower I2S.
+// Clamped to +/-1/64 (~1.5%). The ISR ramps toward it one Q8 step per ~8ms.
+void i2s_clktrim_set_offset_q8(int32_t off_q8) {
+    if (!clktrim_enabled || clktrim_base_q8 == 0) return;
+    int32_t lim = clktrim_base_q8 / 64;
+    if (off_q8 > lim) off_q8 = lim;
+    if (off_q8 < -lim) off_q8 = -lim;
+    clktrim_target_q8 = clktrim_base_q8 + off_q8;
+}
 
 void i2s_clock_trim(void) {
     // Only valid for internal low-jitter modes (int/frac divider control)

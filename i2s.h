@@ -154,6 +154,8 @@
  * @note Divider application is done inside the DMA IRQ handler at block boundaries.
  */
 void i2s_clock_trim(void);
+int32_t i2s_clktrim_base_q8(void);
+void i2s_clktrim_set_offset_q8(int32_t off_q8);
 
 /**
  * @brief Debug counters to diagnose periodic glitches/dropouts.
